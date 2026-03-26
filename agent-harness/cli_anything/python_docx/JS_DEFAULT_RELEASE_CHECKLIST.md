@@ -24,6 +24,7 @@ Target: ship the CLI with JS runtime as the default execution path while preserv
 
 - [x] e2e tests cover JS auto preference and explicit engine override.
 - [x] Python-specific tests are runtime-gated when Python backend is unavailable.
+- [x] Test modules no longer hard-fail at import when `python-docx` parser is absent.
 - [ ] Add CI matrix job: JS-default install (no `python-docx` extra).
 - [ ] Add CI matrix job: Python fallback mode with `DOCX_ENGINE=python`.
 - [ ] Add smoke test for `engine` command output in both matrix jobs.

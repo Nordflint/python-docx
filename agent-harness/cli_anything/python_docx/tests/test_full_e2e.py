@@ -10,8 +10,13 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from docx import Document
-from docx.oxml.ns import qn
+
+try:
+    from docx import Document
+    from docx.oxml.ns import qn
+except Exception:  # noqa: BLE001
+    Document = None  # type: ignore[assignment]
+    qn = None  # type: ignore[assignment]
 
 
 def _cli_cmd() -> list[str]:
@@ -66,6 +71,25 @@ def _python_engine_ready() -> bool:
     except Exception:  # noqa: BLE001
         return False
     return True
+
+
+def _docx_parser_ready() -> bool:
+    return Document is not None and qn is not None
+
+
+def _require_docx_parser() -> None:
+    if not _docx_parser_ready():
+        pytest.skip("python-docx parser is unavailable for document-structure assertions.")
+
+
+def _open_doc(doc_path: Path):
+    _require_docx_parser()
+    return Document(str(doc_path))
+
+
+def _wq(name: str) -> str:
+    _require_docx_parser()
+    return qn(name)
 
 
 def it_runs_one_shot_json_workflow(tmp_path: Path) -> None:
@@ -170,7 +194,7 @@ def it_adds_table_records_from_cli(tmp_path: Path) -> None:
         ]
     )
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     table = doc.tables[0]
     assert len(table.rows) == 4
     assert len(table.columns) == 3
@@ -178,9 +202,9 @@ def it_adds_table_records_from_cli(tmp_path: Path) -> None:
     assert table.cell(1, 0).text == "3"
     assert table.cell(3, 2).text == "Spam, spam, eggs, and spam"
     assert table.cell(0, 0).paragraphs[0].runs[0].bold is True
-    shd = table.cell(0, 0)._tc.get_or_add_tcPr().find(qn("w:shd"))
+    shd = table.cell(0, 0)._tc.get_or_add_tcPr().find(_wq("w:shd"))
     assert shd is not None
-    assert shd.get(qn("w:fill")) == "05206E"
+    assert shd.get(_wq("w:fill")) == "05206E"
     assert str(table.cell(0, 0).paragraphs[0].runs[0].font.color.rgb) == "FFFFFF"
 
 
@@ -208,13 +232,13 @@ def it_adds_row_and_column_lines_from_cli(tmp_path: Path) -> None:
         ]
     )
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     table = doc.tables[0]
-    tbl_borders = table._tbl.tblPr.find(qn("w:tblBorders"))
+    tbl_borders = table._tbl.tblPr.find(_wq("w:tblBorders"))
     assert tbl_borders is not None
-    assert tbl_borders.find(qn("w:insideH")) is not None
-    assert tbl_borders.find(qn("w:insideV")) is not None
-    assert tbl_borders.find(qn("w:insideH")).get(qn("w:color")) == "05206E"
+    assert tbl_borders.find(_wq("w:insideH")) is not None
+    assert tbl_borders.find(_wq("w:insideV")) is not None
+    assert tbl_borders.find(_wq("w:insideH")).get(_wq("w:color")) == "05206E"
 
 
 def it_inserts_frontpage_template_from_cli(tmp_path: Path) -> None:
@@ -241,7 +265,7 @@ def it_inserts_frontpage_template_from_cli(tmp_path: Path) -> None:
         ]
     )
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     assert doc.paragraphs[0].text == "Operations Review"
     assert str(doc.paragraphs[0].runs[0].font.color.rgb) == "05206E"
     body_index = next(i for i, para in enumerate(doc.paragraphs) if para.text == "Existing body content")
@@ -272,12 +296,12 @@ def it_uses_blue_background_and_white_font_for_corporate_frontpage(tmp_path: Pat
         ]
     )
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     assert doc.paragraphs[0].text == "NORDFLINT"
     assert str(doc.paragraphs[0].runs[0].font.color.rgb) == "FFFFFF"
-    para0_shd = doc.paragraphs[0]._p.get_or_add_pPr().find(qn("w:shd"))
+    para0_shd = doc.paragraphs[0]._p.get_or_add_pPr().find(_wq("w:shd"))
     assert para0_shd is not None
-    assert para0_shd.get(qn("w:fill")) == "05206E"
+    assert para0_shd.get(_wq("w:fill")) == "05206E"
 
 
 @pytest.mark.skipif(
@@ -359,7 +383,7 @@ def it_adds_bibliography_and_citations_from_cli(tmp_path: Path) -> None:
     assert entries[0]["key"] == "statsdk2025"
     assert entries[1]["key"] == "oecd2024"
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     texts = [paragraph.text for paragraph in doc.paragraphs]
     assert texts[0].endswith("[1, 2]")
     bibliography_index = texts.index("Bibliography")
@@ -412,7 +436,7 @@ def it_runs_js_engine_repl_session_with_undo_and_save(tmp_path: Path) -> None:
     assert summary_rows[-1]["summary"]["paragraph_count"] == 0
     assert doc_path.exists()
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     assert len(doc.paragraphs) == 0
 
 
@@ -446,7 +470,7 @@ def it_runs_summary_and_paragraph_commands_with_js_engine(tmp_path: Path) -> Non
     assert paragraphs[0]["text"] == "Alpha line"
     assert paragraphs[1]["text"] == "Milestone"
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     assert doc.paragraphs[0].text == "Alpha line"
     assert doc.paragraphs[1].text == "Milestone"
     assert str(doc.paragraphs[1].runs[0].font.color.rgb) == "05206E"
@@ -490,7 +514,7 @@ def it_adds_tables_with_js_engine(tmp_path: Path) -> None:
         extra_env=js_env,
     )
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     table = doc.tables[0]
     assert len(table.rows) == 3
     assert len(table.columns) == 3
@@ -498,15 +522,15 @@ def it_adds_tables_with_js_engine(tmp_path: Path) -> None:
     assert table.cell(1, 0).text == "3"
     assert table.cell(2, 2).text == "Eggs"
     assert table.cell(0, 0).paragraphs[0].runs[0].bold is True
-    shd = table.cell(0, 0)._tc.get_or_add_tcPr().find(qn("w:shd"))
+    shd = table.cell(0, 0)._tc.get_or_add_tcPr().find(_wq("w:shd"))
     assert shd is not None
-    assert shd.get(qn("w:fill")) == "05206E"
+    assert shd.get(_wq("w:fill")) == "05206E"
     assert str(table.cell(0, 0).paragraphs[0].runs[0].font.color.rgb) == "FFFFFF"
-    tbl_borders = table._tbl.tblPr.find(qn("w:tblBorders"))
+    tbl_borders = table._tbl.tblPr.find(_wq("w:tblBorders"))
     assert tbl_borders is not None
-    assert tbl_borders.find(qn("w:insideH")) is not None
-    assert tbl_borders.find(qn("w:insideV")) is not None
-    assert tbl_borders.find(qn("w:insideH")).get(qn("w:color")) == "05206E"
+    assert tbl_borders.find(_wq("w:insideH")) is not None
+    assert tbl_borders.find(_wq("w:insideV")) is not None
+    assert tbl_borders.find(_wq("w:insideH")).get(_wq("w:color")) == "05206E"
 
 
 @pytest.mark.skipif(
@@ -522,7 +546,7 @@ def it_sets_core_properties_with_js_engine(tmp_path: Path) -> None:
     _run(["set-core", "--doc", str(doc_path), "author", "CLI Agent"], extra_env=js_env)
     _run(["set-core", "--doc", str(doc_path), "keywords", "economy, forecast"], extra_env=js_env)
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     assert doc.core_properties.title == "JS Engine Report"
     assert doc.core_properties.author == "CLI Agent"
     assert doc.core_properties.keywords == "economy, forecast"
@@ -559,7 +583,7 @@ def it_inserts_frontpage_with_js_engine(tmp_path: Path) -> None:
         extra_env=js_env,
     )
 
-    doc = Document(str(doc_path))
+    doc = _open_doc(doc_path)
     assert doc.paragraphs[0].text == "NORDFLINT"
     assert doc.paragraphs[1].text == "Operations Review"
     assert str(doc.paragraphs[1].runs[0].font.color.rgb) == "FFFFFF"

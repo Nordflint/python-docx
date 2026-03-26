@@ -5,8 +5,13 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from docx import Document
-from docx.oxml.ns import qn
+
+try:
+    from docx import Document
+    from docx.oxml.ns import qn
+except Exception:  # noqa: BLE001
+    Document = None  # type: ignore[assignment]
+    qn = None  # type: ignore[assignment]
 
 from cli_anything.python_docx.core import DocxSession, JsDocxSession, SessionError
 
@@ -21,6 +26,25 @@ def _js_engine_ready() -> bool:
 def _require_python_session() -> None:
     if DocxSession is None:
         pytest.skip("python-docx is not installed; Python engine tests are skipped.")
+
+
+def _docx_parser_ready() -> bool:
+    return Document is not None and qn is not None
+
+
+def _require_docx_parser() -> None:
+    if not _docx_parser_ready():
+        pytest.skip("python-docx parser is unavailable for document-structure assertions.")
+
+
+def _open_doc(target: Path):
+    _require_docx_parser()
+    return Document(str(target))
+
+
+def _wq(name: str) -> str:
+    _require_docx_parser()
+    return qn(name)
 
 
 def it_handles_session_mutation_and_undo_redo() -> None:
@@ -84,7 +108,7 @@ def it_adds_structured_table_rows(tmp_path: Path) -> None:
     )
     session.save()
 
-    doc = Document(str(target))
+    doc = _open_doc(target)
     table = doc.tables[0]
     assert len(table.rows) == 4
     assert len(table.columns) == 3
@@ -94,9 +118,9 @@ def it_adds_structured_table_rows(tmp_path: Path) -> None:
     assert table.cell(1, 0).text == "3"
     assert table.cell(3, 2).text == "Spam, spam, eggs, and spam"
     assert table.cell(0, 0).paragraphs[0].runs[0].bold is True
-    shd = table.cell(0, 0)._tc.get_or_add_tcPr().find(qn("w:shd"))
+    shd = table.cell(0, 0)._tc.get_or_add_tcPr().find(_wq("w:shd"))
     assert shd is not None
-    assert shd.get(qn("w:fill")) == "05206E"
+    assert shd.get(_wq("w:fill")) == "05206E"
     assert str(table.cell(0, 0).paragraphs[0].runs[0].font.color.rgb) == "FFFFFF"
 
 
@@ -117,20 +141,20 @@ def it_applies_table_line_formatting(tmp_path: Path) -> None:
     )
     session.save()
 
-    doc = Document(str(target))
+    doc = _open_doc(target)
     table = doc.tables[0]
-    tbl_borders = table._tbl.tblPr.find(qn("w:tblBorders"))
+    tbl_borders = table._tbl.tblPr.find(_wq("w:tblBorders"))
     assert tbl_borders is not None
 
-    inside_h = tbl_borders.find(qn("w:insideH"))
-    inside_v = tbl_borders.find(qn("w:insideV"))
-    top = tbl_borders.find(qn("w:top"))
+    inside_h = tbl_borders.find(_wq("w:insideH"))
+    inside_v = tbl_borders.find(_wq("w:insideV"))
+    top = tbl_borders.find(_wq("w:top"))
     assert inside_h is not None
     assert inside_v is not None
     assert top is not None
-    assert inside_h.get(qn("w:val")) == "single"
-    assert inside_v.get(qn("w:val")) == "single"
-    assert inside_h.get(qn("w:color")) == "05206E"
+    assert inside_h.get(_wq("w:val")) == "single"
+    assert inside_v.get(_wq("w:val")) == "single"
+    assert inside_h.get(_wq("w:color")) == "05206E"
 
 
 def it_inserts_frontpage_template_before_existing_content(tmp_path: Path) -> None:
@@ -151,17 +175,17 @@ def it_inserts_frontpage_template_before_existing_content(tmp_path: Path) -> Non
     session.save()
 
     assert payload["template"] == "corporate"
-    doc = Document(str(target))
+    doc = _open_doc(target)
     assert doc.paragraphs[0].text == "NORDFLINT"
     assert doc.paragraphs[1].text == "Quarterly Results"
     assert str(doc.paragraphs[0].runs[0].font.color.rgb) == "FFFFFF"
     assert str(doc.paragraphs[1].runs[0].font.color.rgb) == "FFFFFF"
-    para0_shd = doc.paragraphs[0]._p.get_or_add_pPr().find(qn("w:shd"))
-    para1_shd = doc.paragraphs[1]._p.get_or_add_pPr().find(qn("w:shd"))
+    para0_shd = doc.paragraphs[0]._p.get_or_add_pPr().find(_wq("w:shd"))
+    para1_shd = doc.paragraphs[1]._p.get_or_add_pPr().find(_wq("w:shd"))
     assert para0_shd is not None
     assert para1_shd is not None
-    assert para0_shd.get(qn("w:fill")) == "05206E"
-    assert para1_shd.get(qn("w:fill")) == "05206E"
+    assert para0_shd.get(_wq("w:fill")) == "05206E"
+    assert para1_shd.get(_wq("w:fill")) == "05206E"
     body_index = next(i for i, para in enumerate(doc.paragraphs) if para.text == "Existing body content")
     assert body_index > 1
     assert doc.core_properties.title == "Quarterly Results"
@@ -198,7 +222,7 @@ def it_adds_bibliography_entries_and_in_text_citations(tmp_path: Path) -> None:
     assert cited_existing["text_after"].endswith("[1, 2]")
     assert cited_new["citation_marker"] == "[2]"
 
-    doc = Document(str(target))
+    doc = _open_doc(target)
     texts = [paragraph.text for paragraph in doc.paragraphs]
     assert texts[0].endswith("[1, 2]")
     bibliography_index = texts.index("Bibliography")
@@ -260,7 +284,7 @@ def it_saves_opens_and_sets_core_property_with_js_session(tmp_path: Path) -> Non
     assert summary["paragraph_count"] == 1
     assert summary["heading_count"] == 1
 
-    doc = Document(str(target))
+    doc = _open_doc(target)
     assert doc.core_properties.author == "JS Session"
     assert str(doc.paragraphs[0].runs[0].font.color.rgb) == "05206E"
 
