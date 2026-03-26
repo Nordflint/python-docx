@@ -64,6 +64,7 @@ python-docx> exit
 - `set-core [--doc PATH] KEY VALUE`
 - `undo`
 - `redo`
+- `engine` (use global `--json` before the subcommand)
 - `repl`
 
 `--doc` on mutating commands enables one-shot edits that auto-save back to that file.

@@ -74,6 +74,10 @@ def _active_engine() -> str:
     return "python"
 
 
+def _configured_engine() -> str:
+    return str(os.environ.get("DOCX_ENGINE", "auto")).strip().lower()
+
+
 def _js_runtime_ready() -> bool:
     if shutil.which("node") is None:
         return False
@@ -107,7 +111,7 @@ def _run_repl(root: click.Command, ctx_obj: dict[str, Any]) -> None:
                 "Commands: new, open, save, summary, list-paragraphs, add-paragraph, "
                 "add-heading, add-table, frontpage-templates, add-frontpage, "
                 "add-bibliography-entry, list-bibliography, add-citation, cite-paragraph, "
-                "set-core, undo, redo, repl"
+                "set-core, undo, redo, engine, repl"
             )
             click.echo("Use 'json on' or 'json off' to toggle JSON output.")
             continue
@@ -169,6 +173,30 @@ def cli(ctx: click.Context, json_output: bool) -> None:
 def repl(ctx: click.Context) -> None:
     """Start interactive mode."""
     _run_repl(cli, ctx.obj)
+
+
+@cli.command("engine")
+@click.pass_context
+def engine_command(ctx: click.Context) -> None:
+    """Show effective engine selection details."""
+    payload = {
+        "ok": True,
+        "action": "engine",
+        "engine": {
+            "configured": _configured_engine(),
+            "active": _active_engine(),
+            "js_runtime_ready": _js_runtime_ready(),
+        },
+    }
+    _emit(
+        ctx,
+        payload,
+        text=(
+            f"configured={payload['engine']['configured']} "
+            f"active={payload['engine']['active']} "
+            f"js_runtime_ready={payload['engine']['js_runtime_ready']}"
+        ),
+    )
 
 
 @cli.command("new")

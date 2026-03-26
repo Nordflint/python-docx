@@ -79,6 +79,16 @@ def it_runs_one_shot_json_workflow(tmp_path: Path) -> None:
     assert payload["summary"]["heading_count"] == 1
 
 
+def it_reports_effective_engine() -> None:
+    completed = _run(["--json", "engine"])
+    rows = _json_lines(completed.stdout)
+    assert rows
+    payload = rows[-1]
+    assert payload["action"] == "engine"
+    assert payload["engine"]["active"] in {"python", "js"}
+    assert isinstance(payload["engine"]["js_runtime_ready"], bool)
+
+
 def it_runs_default_repl_mode_with_undo() -> None:
     repl_script = "\n".join(
         [
