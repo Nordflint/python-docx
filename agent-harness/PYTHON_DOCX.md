@@ -9,11 +9,13 @@ This harness exposes high-value document operations from `python-docx` as a stat
 
 - create/open/save documents
 - add paragraph, heading, and table content
+- insert template-driven frontpages/title pages
 - update core metadata properties
 - inspect summary and paragraph lists
 - run with one-shot subcommands or interactive REPL
 - emit machine-readable JSON output using `--json`
 - support undo/redo in-session via in-memory `.docx` snapshots
+- enforce a fixed visual palette (`#05206E` main, `#357AE9` secondary)
 
 ## Backend strategy
 

@@ -78,7 +78,7 @@ def _run_repl(root: click.Command, ctx_obj: dict[str, Any]) -> None:
         if line == "help":
             click.echo(
                 "Commands: new, open, save, summary, list-paragraphs, add-paragraph, "
-                "add-heading, add-table, set-core, undo, redo, repl"
+                "add-heading, add-table, frontpage-templates, add-frontpage, set-core, undo, redo, repl"
             )
             click.echo("Use 'json on' or 'json off' to toggle JSON output.")
             continue
@@ -275,7 +275,11 @@ def add_heading_command(ctx: click.Context, text: str, doc: Path | None, level: 
 @click.option("--record", "record_values", multiple=True, help="Row values split by --delimiter (repeatable).")
 @click.option("--delimiter", default="|", show_default=True, help="Delimiter used to parse each --record line.")
 @click.option("--header-bold/--no-header-bold", default=False, help="Render header text in bold.")
-@click.option("--header-bg-color", default=None, help="Header background color as 6-digit hex (e.g. D9E1F2).")
+@click.option(
+    "--header-bg-color",
+    default=None,
+    help="Header background color from palette: main|secondary or exact palette hex.",
+)
 @click.option("--row-lines/--no-row-lines", default=False, help="Draw separator lines between rows.")
 @click.option("--column-lines/--no-column-lines", default=False, help="Draw separator lines between columns.")
 @click.option("--outer-border/--no-outer-border", default=False, help="Draw border around the table.")
@@ -287,7 +291,12 @@ def add_heading_command(ctx: click.Context, text: str, doc: Path | None, level: 
     help="Border line style.",
 )
 @click.option("--line-size", type=click.IntRange(2, 96), default=8, show_default=True, help="Border width in eighths of a point.")
-@click.option("--line-color", default="auto", show_default=True, help="Border color: 'auto' or 6-digit hex (e.g. 000000).")
+@click.option(
+    "--line-color",
+    default="main",
+    show_default=True,
+    help="Border color from palette: main|secondary or exact palette hex.",
+)
 @click.pass_context
 def add_table_command(
     ctx: click.Context,
@@ -364,6 +373,83 @@ def add_table_command(
             f"header_bold={header_bold}, header_bg_color={header_bg_color}, "
             f"row_lines={row_lines}, column_lines={column_lines}, outer_border={outer_border}). "
             f"path={saved}"
+        ),
+    )
+
+
+@cli.command("frontpage-templates")
+@click.pass_context
+def frontpage_templates_command(ctx: click.Context) -> None:
+    """List available frontpage templates."""
+    session = _session_from_context(ctx)
+    templates = session.list_frontpage_templates()
+    payload = {"ok": True, "action": "frontpage-templates", "templates": templates}
+    if ctx.obj.get("json_output", False):
+        _emit(ctx, payload)
+        return
+    click.echo("\n".join(templates))
+
+
+@cli.command("add-frontpage")
+@click.option("--doc", type=click.Path(exists=True, path_type=Path), default=None, help="Perform operation against this file and save it.")
+@click.option(
+    "--template",
+    "template_name",
+    type=click.Choice(list(DocxSession.FRONTPAGE_TEMPLATES), case_sensitive=False),
+    default="clean",
+    show_default=True,
+    help="Frontpage template preset.",
+)
+@click.option("--title", required=True, help="Frontpage title.")
+@click.option("--subtitle", default=None, help="Optional subtitle.")
+@click.option("--author", default=None, help="Optional author line.")
+@click.option("--organization", default=None, help="Optional organization/institution line.")
+@click.option("--date-text", default=None, help="Optional date text. Defaults to today's date.")
+@click.option("--page-break/--no-page-break", default=True, help="Insert a page break after frontpage.")
+@click.option("--set-core-title/--no-set-core-title", default=True, help="Update document core title metadata.")
+@click.pass_context
+def add_frontpage_command(
+    ctx: click.Context,
+    doc: Path | None,
+    template_name: str,
+    title: str,
+    subtitle: str | None,
+    author: str | None,
+    organization: str | None,
+    date_text: str | None,
+    page_break: bool,
+    set_core_title: bool,
+) -> None:
+    """Insert a template-driven frontpage at the beginning of the document."""
+    session = _session_from_context(ctx)
+    used_doc = _open_if_requested(session, str(doc) if doc else None)
+    _require_session_doc(session)
+    frontpage_meta = session.add_frontpage(
+        template=template_name,
+        title=title,
+        subtitle=subtitle,
+        author=author,
+        organization=organization,
+        date_text=date_text,
+        include_page_break=page_break,
+        set_core_title=set_core_title,
+    )
+    if used_doc:
+        saved = session.save(doc)
+    else:
+        saved = session.path
+    payload = {
+        "ok": True,
+        "action": "add-frontpage",
+        "frontpage": frontpage_meta,
+        "path": str(saved) if saved else None,
+    }
+    _emit(
+        ctx,
+        payload,
+        text=(
+            f"Inserted frontpage template '{frontpage_meta['template']}' "
+            f"with title '{frontpage_meta['title']}'. path={saved}"
         ),
     )
 

@@ -95,8 +95,6 @@ def it_adds_table_records_from_cli(tmp_path: Path) -> None:
             "--header",
             "Desc",
             "--header-bold",
-            "--header-bg-color",
-            "D9E1F2",
             "--record",
             "3|101|Spam",
             "--record",
@@ -116,7 +114,8 @@ def it_adds_table_records_from_cli(tmp_path: Path) -> None:
     assert table.cell(0, 0).paragraphs[0].runs[0].bold is True
     shd = table.cell(0, 0)._tc.get_or_add_tcPr().find(qn("w:shd"))
     assert shd is not None
-    assert shd.get(qn("w:fill")) == "D9E1F2"
+    assert shd.get(qn("w:fill")) == "05206E"
+    assert str(table.cell(0, 0).paragraphs[0].runs[0].font.color.rgb) == "FFFFFF"
 
 
 def it_adds_row_and_column_lines_from_cli(tmp_path: Path) -> None:
@@ -139,7 +138,7 @@ def it_adds_row_and_column_lines_from_cli(tmp_path: Path) -> None:
             "--line-size",
             "8",
             "--line-color",
-            "000000",
+            "main",
         ]
     )
 
@@ -149,3 +148,67 @@ def it_adds_row_and_column_lines_from_cli(tmp_path: Path) -> None:
     assert tbl_borders is not None
     assert tbl_borders.find(qn("w:insideH")) is not None
     assert tbl_borders.find(qn("w:insideV")) is not None
+    assert tbl_borders.find(qn("w:insideH")).get(qn("w:color")) == "05206E"
+
+
+def it_inserts_frontpage_template_from_cli(tmp_path: Path) -> None:
+    doc_path = tmp_path / "frontpage-cli.docx"
+    _run(["new", str(doc_path)])
+    _run(["add-paragraph", "--doc", str(doc_path), "Existing body content"])
+    _run(
+        [
+            "add-frontpage",
+            "--doc",
+            str(doc_path),
+            "--template",
+            "clean",
+            "--title",
+            "Operations Review",
+            "--subtitle",
+            "Q1 2026",
+            "--author",
+            "CLI Agent",
+            "--organization",
+            "Nordflint",
+            "--date-text",
+            "2026-03-26",
+        ]
+    )
+
+    doc = Document(str(doc_path))
+    assert doc.paragraphs[0].text == "Operations Review"
+    assert str(doc.paragraphs[0].runs[0].font.color.rgb) == "05206E"
+    body_index = next(i for i, para in enumerate(doc.paragraphs) if para.text == "Existing body content")
+    assert body_index > 0
+    assert doc.core_properties.title == "Operations Review"
+
+
+def it_uses_blue_background_and_white_font_for_corporate_frontpage(tmp_path: Path) -> None:
+    doc_path = tmp_path / "frontpage-corporate.docx"
+    _run(["new", str(doc_path)])
+    _run(
+        [
+            "add-frontpage",
+            "--doc",
+            str(doc_path),
+            "--template",
+            "corporate",
+            "--title",
+            "Corporate Report",
+            "--subtitle",
+            "Q2 2026",
+            "--author",
+            "CLI Agent",
+            "--organization",
+            "Nordflint",
+            "--date-text",
+            "2026-03-26",
+        ]
+    )
+
+    doc = Document(str(doc_path))
+    assert doc.paragraphs[0].text == "NORDFLINT"
+    assert str(doc.paragraphs[0].runs[0].font.color.rgb) == "FFFFFF"
+    para0_shd = doc.paragraphs[0]._p.get_or_add_pPr().find(qn("w:shd"))
+    assert para0_shd is not None
+    assert para0_shd.get(qn("w:fill")) == "05206E"

@@ -39,6 +39,7 @@ def it_saves_opens_and_writes_core_property(tmp_path: Path) -> None:
     summary = reopened.summary()
     assert summary["paragraph_count"] == 1
     assert summary["table_count"] == 1
+    assert str(reopened._document.paragraphs[0].runs[0].font.color.rgb) == "05206E"
 
 
 def it_raises_when_undo_has_no_history() -> None:
@@ -62,7 +63,6 @@ def it_adds_structured_table_rows(tmp_path: Path) -> None:
             ["4", "631", "Spam, spam, eggs, and spam"],
         ],
         header_bold=True,
-        header_bg_color="D9E1F2",
     )
     session.save()
 
@@ -78,7 +78,8 @@ def it_adds_structured_table_rows(tmp_path: Path) -> None:
     assert table.cell(0, 0).paragraphs[0].runs[0].bold is True
     shd = table.cell(0, 0)._tc.get_or_add_tcPr().find(qn("w:shd"))
     assert shd is not None
-    assert shd.get(qn("w:fill")) == "D9E1F2"
+    assert shd.get(qn("w:fill")) == "05206E"
+    assert str(table.cell(0, 0).paragraphs[0].runs[0].font.color.rgb) == "FFFFFF"
 
 
 def it_applies_table_line_formatting(tmp_path: Path) -> None:
@@ -93,7 +94,7 @@ def it_applies_table_line_formatting(tmp_path: Path) -> None:
         outer_border=True,
         line_style="single",
         line_size=8,
-        line_color="000000",
+        line_color="main",
     )
     session.save()
 
@@ -110,4 +111,37 @@ def it_applies_table_line_formatting(tmp_path: Path) -> None:
     assert top is not None
     assert inside_h.get(qn("w:val")) == "single"
     assert inside_v.get(qn("w:val")) == "single"
-    assert inside_h.get(qn("w:color")) == "000000"
+    assert inside_h.get(qn("w:color")) == "05206E"
+
+
+def it_inserts_frontpage_template_before_existing_content(tmp_path: Path) -> None:
+    target = tmp_path / "frontpage.docx"
+    session = DocxSession()
+    session.new_document(path=target)
+    session.add_paragraph("Existing body content")
+
+    payload = session.add_frontpage(
+        template="corporate",
+        title="Quarterly Results",
+        subtitle="Q1 2026",
+        author="CLI Agent",
+        organization="Nordflint",
+        date_text="2026-03-26",
+    )
+    session.save()
+
+    assert payload["template"] == "corporate"
+    doc = Document(str(target))
+    assert doc.paragraphs[0].text == "NORDFLINT"
+    assert doc.paragraphs[1].text == "Quarterly Results"
+    assert str(doc.paragraphs[0].runs[0].font.color.rgb) == "FFFFFF"
+    assert str(doc.paragraphs[1].runs[0].font.color.rgb) == "FFFFFF"
+    para0_shd = doc.paragraphs[0]._p.get_or_add_pPr().find(qn("w:shd"))
+    para1_shd = doc.paragraphs[1]._p.get_or_add_pPr().find(qn("w:shd"))
+    assert para0_shd is not None
+    assert para1_shd is not None
+    assert para0_shd.get(qn("w:fill")) == "05206E"
+    assert para1_shd.get(qn("w:fill")) == "05206E"
+    body_index = next(i for i, para in enumerate(doc.paragraphs) if para.text == "Existing body content")
+    assert body_index > 1
+    assert doc.core_properties.title == "Quarterly Results"
