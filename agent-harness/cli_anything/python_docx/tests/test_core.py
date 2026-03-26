@@ -276,7 +276,10 @@ def it_writes_footnote_citations_with_js_session(tmp_path: Path) -> None:
     session.add_paragraph("Claim text.")
     session.add_bibliography_entry("source2026", "Source Report 2026", url="https://example.com/source2026")
     session.cite_paragraph(0, ["source2026"])
+    paragraphs = session.list_paragraphs()
     session.save()
+
+    assert paragraphs[0]["text"].endswith("[1]")
 
     with zipfile.ZipFile(target) as archive:
         assert "word/footnotes.xml" in archive.namelist()

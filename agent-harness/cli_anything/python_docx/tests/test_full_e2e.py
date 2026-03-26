@@ -568,6 +568,15 @@ def it_writes_footnote_citations_with_js_engine(tmp_path: Path) -> None:
     assert listed_rows
     assert listed_rows[-1]["entries"][0]["key"] == "agency2025"
 
+    paragraphs = _run(
+        ["--json", "list-paragraphs", "--doc", str(doc_path)],
+        extra_env=js_env,
+    )
+    paragraph_rows = _json_lines(paragraphs.stdout)
+    assert paragraph_rows
+    rendered = [row["text"] for row in paragraph_rows[-1]["paragraphs"]]
+    assert any(text.endswith("[1]") for text in rendered)
+
     with zipfile.ZipFile(doc_path) as archive:
         assert "word/footnotes.xml" in archive.namelist()
         document_xml = archive.read("word/document.xml").decode("utf-8")

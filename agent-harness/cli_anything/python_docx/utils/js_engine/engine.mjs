@@ -91,9 +91,38 @@ function setWAttr(node, name, value) {
   node.setAttributeNS(W_NS, `w:${name}`, String(value));
 }
 
-function paragraphText(selectW, paragraphNode) {
+function paragraphFootnoteIds(selectW, paragraphNode) {
+  const attrs = selectW(".//w:footnoteReference/@w:id | .//w:footnoteReference/@id", paragraphNode);
+  const ids = [];
+  attrs.forEach((attr) => {
+    const parsed = Number.parseInt(String(attr.value ?? ""), 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) return;
+    if (!ids.includes(parsed)) {
+      ids.push(parsed);
+    }
+  });
+  return ids;
+}
+
+function paragraphText(selectW, paragraphNode, options = {}) {
   const texts = selectW(".//w:t", paragraphNode);
-  return texts.map((node) => node.textContent ?? "").join("");
+  const text = texts.map((node) => node.textContent ?? "").join("");
+  if (options.includeFootnoteMarkers === false) {
+    return text;
+  }
+  const footnoteIds = paragraphFootnoteIds(selectW, paragraphNode);
+  if (!footnoteIds.length) {
+    return text;
+  }
+  const marker = citationMarker(footnoteIds);
+  const trimmed = text.replace(/\s+$/g, "");
+  if (!trimmed) {
+    return marker;
+  }
+  if (trimmed.endsWith(marker)) {
+    return trimmed;
+  }
+  return `${trimmed} ${marker}`;
 }
 
 function paragraphStyle(selectW, paragraphNode) {
@@ -1145,6 +1174,7 @@ async function citeParagraph(request) {
   const paragraph = paragraphs[paragraphIndex];
   const textBefore = paragraphText(state.selectW, paragraph);
   appendCitationRuns(state.documentDoc, paragraph, resolved);
+  const textAfter = paragraphText(state.selectW, paragraph);
 
   ensureFootnotesRelationship(state.selectRels, state.relsDoc);
   ensureContentTypeOverride(state.selectCT, state.contentTypesDoc);
@@ -1157,7 +1187,7 @@ async function citeParagraph(request) {
     citation: {
       paragraph_index: paragraphIndex,
       text_before: textBefore,
-      text_after: `${textBefore} ${marker}`.trim(),
+      text_after: textAfter,
       source_keys: resolved.map((entry) => entry.key),
       citation_numbers: resolved.map((entry) => entry.number),
       citation_marker: marker,
