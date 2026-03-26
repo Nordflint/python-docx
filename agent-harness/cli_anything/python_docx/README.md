@@ -11,6 +11,12 @@ python -m pip install -e .
 npm install
 ```
 
+Optional Python fallback engine support:
+
+```bash
+python -m pip install -e .[python]
+```
+
 ## Usage
 
 One-shot examples:
@@ -84,6 +90,7 @@ In-text citation markers use those numbers, for example `[1]` or `[1, 2]`, so cl
   - `auto` (default): prefer JS when Node + dependencies are available, else fall back to Python.
   - `js`: force JS engine.
   - `python`: force Python engine.
+- `python-docx` is now optional at install-time and only required for Python engine mode.
 - Set `DOCX_ENGINE=js` to force selected commands through the Node engine.
 - In `auto` or `js` mode, command execution runs through the JS-backed session (including REPL + one-shot flows).
 - In JS mode, citations are written as Word footnote references (`word/footnotes.xml`) while preserving CLI JSON/text contracts.

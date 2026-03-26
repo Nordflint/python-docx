@@ -5,6 +5,7 @@ import json
 import os
 import shlex
 import shutil
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, cast
 
@@ -71,7 +72,7 @@ def _active_engine() -> str:
         return "js" if _js_runtime_ready() else "python"
     if configured in {"js", "python"}:
         return configured
-    return "python"
+    return "js" if _js_runtime_ready() else "python"
 
 
 def _configured_engine() -> str:
@@ -86,6 +87,15 @@ def _js_runtime_ready() -> bool:
         return False
     node_modules_dir = Path(__file__).resolve().parents[2] / "node_modules"
     return node_modules_dir.exists()
+
+
+@lru_cache(maxsize=1)
+def _python_runtime_ready() -> bool:
+    try:
+        from cli_anything.python_docx.core.session import DocxSession  # noqa: F401
+    except Exception:  # noqa: BLE001
+        return False
+    return True
 
 
 def _run_repl(root: click.Command, ctx_obj: dict[str, Any]) -> None:
@@ -153,7 +163,21 @@ def _run_repl(root: click.Command, ctx_obj: dict[str, Any]) -> None:
 def _build_session() -> Any:
     active_engine = _active_engine()
     if active_engine == "js":
+        if not _js_runtime_ready():
+            raise click.ClickException(
+                "JS engine is unavailable. Install Node dependencies in agent-harness/ "
+                "or set DOCX_ENGINE=python."
+            )
         return JsDocxSession()
+    if not _python_runtime_ready():
+        if _js_runtime_ready():
+            raise click.ClickException(
+                "Python engine is unavailable. Install python-docx or set DOCX_ENGINE=js."
+            )
+        raise click.ClickException(
+            "No DOCX engine runtime is available. Install Node dependencies for JS mode "
+            "or install python-docx for Python mode."
+        )
     try:
         from cli_anything.python_docx.core.session import DocxSession
     except Exception as err:  # noqa: BLE001
@@ -199,6 +223,7 @@ def engine_command(ctx: click.Context) -> None:
             "configured": _configured_engine(),
             "active": _active_engine(),
             "js_runtime_ready": _js_runtime_ready(),
+            "python_runtime_ready": _python_runtime_ready(),
         },
     }
     _emit(
@@ -207,7 +232,8 @@ def engine_command(ctx: click.Context) -> None:
         text=(
             f"configured={payload['engine']['configured']} "
             f"active={payload['engine']['active']} "
-            f"js_runtime_ready={payload['engine']['js_runtime_ready']}"
+            f"js_runtime_ready={payload['engine']['js_runtime_ready']} "
+            f"python_runtime_ready={payload['engine']['python_runtime_ready']}"
         ),
     )
 

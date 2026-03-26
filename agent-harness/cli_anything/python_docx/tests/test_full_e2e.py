@@ -87,6 +87,7 @@ def it_reports_effective_engine() -> None:
     assert payload["action"] == "engine"
     assert payload["engine"]["active"] in {"python", "js"}
     assert isinstance(payload["engine"]["js_runtime_ready"], bool)
+    assert isinstance(payload["engine"]["python_runtime_ready"], bool)
 
 
 def it_runs_default_repl_mode_with_undo() -> None:

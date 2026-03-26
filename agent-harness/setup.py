@@ -20,10 +20,10 @@ setup(
     },
     install_requires=[
         "click>=8.1.7",
-        "python-docx>=1.1.2",
     ],
     extras_require={
-        "dev": ["pytest>=7.4.0"],
+        "python": ["python-docx>=1.1.2"],
+        "dev": ["pytest>=7.4.0", "python-docx>=1.1.2"],
     },
     entry_points={
         "console_scripts": [

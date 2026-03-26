@@ -18,7 +18,13 @@ def _js_engine_ready() -> bool:
     return (harness_root / "node_modules").is_dir()
 
 
+def _require_python_session() -> None:
+    if DocxSession is None:
+        pytest.skip("python-docx is not installed; Python engine tests are skipped.")
+
+
 def it_handles_session_mutation_and_undo_redo() -> None:
+    _require_python_session()
     session = DocxSession()
     session.new_document()
 
@@ -33,6 +39,7 @@ def it_handles_session_mutation_and_undo_redo() -> None:
 
 
 def it_saves_opens_and_writes_core_property(tmp_path: Path) -> None:
+    _require_python_session()
     target = tmp_path / "report.docx"
     session = DocxSession()
     session.new_document(path=target, title="Draft")
@@ -52,6 +59,7 @@ def it_saves_opens_and_writes_core_property(tmp_path: Path) -> None:
 
 
 def it_raises_when_undo_has_no_history() -> None:
+    _require_python_session()
     session = DocxSession()
     session.new_document()
 
@@ -60,6 +68,7 @@ def it_raises_when_undo_has_no_history() -> None:
 
 
 def it_adds_structured_table_rows(tmp_path: Path) -> None:
+    _require_python_session()
     target = tmp_path / "records.docx"
     session = DocxSession()
     session.new_document(path=target)
@@ -92,6 +101,7 @@ def it_adds_structured_table_rows(tmp_path: Path) -> None:
 
 
 def it_applies_table_line_formatting(tmp_path: Path) -> None:
+    _require_python_session()
     target = tmp_path / "bordered.docx"
     session = DocxSession()
     session.new_document(path=target)
@@ -124,6 +134,7 @@ def it_applies_table_line_formatting(tmp_path: Path) -> None:
 
 
 def it_inserts_frontpage_template_before_existing_content(tmp_path: Path) -> None:
+    _require_python_session()
     target = tmp_path / "frontpage.docx"
     session = DocxSession()
     session.new_document(path=target)
@@ -157,6 +168,7 @@ def it_inserts_frontpage_template_before_existing_content(tmp_path: Path) -> Non
 
 
 def it_adds_bibliography_entries_and_in_text_citations(tmp_path: Path) -> None:
+    _require_python_session()
     target = tmp_path / "citations.docx"
     session = DocxSession()
     session.new_document(path=target)
@@ -197,6 +209,7 @@ def it_adds_bibliography_entries_and_in_text_citations(tmp_path: Path) -> None:
 
 
 def it_raises_when_citation_source_key_does_not_exist() -> None:
+    _require_python_session()
     session = DocxSession()
     session.new_document()
     session.add_paragraph("Claim text.")
