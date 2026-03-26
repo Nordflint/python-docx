@@ -24,8 +24,9 @@ This harness exposes high-value document operations from `python-docx` as a stat
 The harness wraps the real `python-docx` APIs in `utils/python_docx_backend.py` and does not reimplement `.docx` behavior.
 
 For hybrid migration, a Node worker (`utils/js_engine/engine.mjs`) can be selected for selected
-commands in both one-shot `--doc` mode and JS-backed in-memory session mode. This allows footnote
-citation output while preserving the existing CLI contract and REPL flow.
+commands in both one-shot `--doc` mode and JS-backed in-memory session mode. JS session `new`
+starts from a bundled default `.docx` template (`templates/default.docx`) to reduce runtime
+coupling on Python-side document construction.
 
 Engine selection is controlled by `DOCX_ENGINE` (`auto`, `js`, `python`), where `auto`
 prefers JS when Node dependencies are available.

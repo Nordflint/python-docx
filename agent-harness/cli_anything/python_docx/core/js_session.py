@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, TypeVar
 
 from cli_anything.python_docx.core.session import SessionError
-from cli_anything.python_docx.utils import js_docx_engine, python_docx_backend as backend
+from cli_anything.python_docx.utils import js_docx_engine
 
 T = TypeVar("T")
 
@@ -30,8 +30,7 @@ class JsDocxSession:
         return self._document_bytes is not None
 
     def new_document(self, path: str | Path | None = None, title: str | None = None) -> None:
-        document = backend.new_document()
-        self._document_bytes = backend.serialize_document(document)
+        self._document_bytes = self._default_template_bytes()
         self._path = Path(path) if path is not None else None
         self._undo_stack.clear()
         self._redo_stack.clear()
@@ -203,6 +202,12 @@ class JsDocxSession:
         if self._document_bytes is None:
             raise SessionError("No active document. Use new/open first.")
         return self._document_bytes
+
+    def _default_template_bytes(self) -> bytes:
+        template_path = Path(__file__).resolve().parents[1] / "templates" / "default.docx"
+        if not template_path.exists():
+            raise SessionError(f"JS default template is missing: {template_path}")
+        return template_path.read_bytes()
 
     def _read_with_temp_doc(self, operation: Callable[[Path], T]) -> T:
         document_bytes = self._ensure_document()

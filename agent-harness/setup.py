@@ -16,6 +16,7 @@ setup(
     include_package_data=True,
     package_data={
         "cli_anything.python_docx.utils": ["js_engine/*.mjs"],
+        "cli_anything.python_docx": ["templates/*.docx"],
     },
     install_requires=[
         "click>=8.1.7",
