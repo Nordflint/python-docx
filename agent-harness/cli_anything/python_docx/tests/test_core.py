@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import shutil
+import zipfile
 from pathlib import Path
 
 import pytest
 from docx import Document
 from docx.oxml.ns import qn
 
-from cli_anything.python_docx.core import DocxSession, SessionError
+from cli_anything.python_docx.core import DocxSession, JsDocxSession, SessionError
+
+
+def _js_engine_ready() -> bool:
+    if shutil.which("node") is None:
+        return False
+    harness_root = Path(__file__).resolve().parents[3]
+    return (harness_root / "node_modules").is_dir()
 
 
 def it_handles_session_mutation_and_undo_redo() -> None:
@@ -198,3 +207,68 @@ def it_raises_when_citation_source_key_does_not_exist() -> None:
 
     with pytest.raises(SessionError, match="Unknown bibliography key"):
         session.cite_paragraph(paragraph_index=0, source_keys=["missing"])
+
+
+@pytest.mark.skipif(
+    not _js_engine_ready(),
+    reason="JS engine dependencies are not installed. Run `npm install` in agent-harness/ first.",
+)
+def it_handles_js_session_mutation_and_undo_redo() -> None:
+    session = JsDocxSession()
+    session.new_document()
+
+    session.add_paragraph("first")
+    assert session.summary()["paragraph_count"] == 1
+
+    session.undo()
+    assert session.summary()["paragraph_count"] == 0
+
+    session.redo()
+    assert session.summary()["paragraph_count"] == 1
+
+
+@pytest.mark.skipif(
+    not _js_engine_ready(),
+    reason="JS engine dependencies are not installed. Run `npm install` in agent-harness/ first.",
+)
+def it_saves_opens_and_sets_core_property_with_js_session(tmp_path: Path) -> None:
+    target = tmp_path / "js-session-report.docx"
+    session = JsDocxSession()
+    session.new_document(path=target)
+
+    session.add_heading("Plan", level=2)
+    session.set_core_property("author", "JS Session")
+    session.save()
+
+    reopened = JsDocxSession()
+    reopened.open_document(target)
+
+    summary = reopened.summary()
+    assert summary["paragraph_count"] == 1
+    assert summary["heading_count"] == 1
+
+    doc = Document(str(target))
+    assert doc.core_properties.author == "JS Session"
+    assert str(doc.paragraphs[0].runs[0].font.color.rgb) == "05206E"
+
+
+@pytest.mark.skipif(
+    not _js_engine_ready(),
+    reason="JS engine dependencies are not installed. Run `npm install` in agent-harness/ first.",
+)
+def it_writes_footnote_citations_with_js_session(tmp_path: Path) -> None:
+    target = tmp_path / "js-session-citations.docx"
+    session = JsDocxSession()
+    session.new_document(path=target)
+    session.add_paragraph("Claim text.")
+    session.add_bibliography_entry("source2026", "Source Report 2026", url="https://example.com/source2026")
+    session.cite_paragraph(0, ["source2026"])
+    session.save()
+
+    with zipfile.ZipFile(target) as archive:
+        assert "word/footnotes.xml" in archive.namelist()
+        footnotes_xml = archive.read("word/footnotes.xml").decode("utf-8")
+        document_xml = archive.read("word/document.xml").decode("utf-8")
+
+    assert "Source Report 2026" in footnotes_xml
+    assert 'w:footnoteReference w:id="1"' in document_xml
