@@ -60,6 +60,14 @@ def _js_engine_ready() -> bool:
     return (harness_root / "node_modules").is_dir()
 
 
+def _python_engine_ready() -> bool:
+    try:
+        from cli_anything.python_docx.core.session import DocxSession  # noqa: F401
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
 def it_runs_one_shot_json_workflow(tmp_path: Path) -> None:
     doc_path = tmp_path / "workflow.docx"
 
@@ -272,13 +280,22 @@ def it_uses_blue_background_and_white_font_for_corporate_frontpage(tmp_path: Pat
     assert para0_shd.get(qn("w:fill")) == "05206E"
 
 
+@pytest.mark.skipif(
+    not _python_engine_ready(),
+    reason="python-docx backend is not installed. Install with `pip install -e .[python]`.",
+)
 def it_adds_bibliography_and_citations_from_cli(tmp_path: Path) -> None:
     doc_path = tmp_path / "citations-cli.docx"
-    py_env = {"DOCX_ENGINE": "python"}
+    js_default_env = {"DOCX_ENGINE": "js"}
     _run(["new", str(doc_path)])
-    _run(["add-paragraph", "--doc", str(doc_path), "The regional labor market improved year over year."], extra_env=py_env)
+    _run(
+        ["--engine", "python", "add-paragraph", "--doc", str(doc_path), "The regional labor market improved year over year."],
+        extra_env=js_default_env,
+    )
     _run(
         [
+            "--engine",
+            "python",
             "add-bibliography-entry",
             "--doc",
             str(doc_path),
@@ -287,20 +304,24 @@ def it_adds_bibliography_and_citations_from_cli(tmp_path: Path) -> None:
             "statsdk2025",
             "Statistics Denmark labour bulletin (2025)",
         ],
-        extra_env=py_env,
+        extra_env=js_default_env,
     )
     _run(
         [
+            "--engine",
+            "python",
             "add-bibliography-entry",
             "--doc",
             str(doc_path),
             "oecd2024",
             "OECD Employment Outlook (2024)",
         ],
-        extra_env=py_env,
+        extra_env=js_default_env,
     )
     _run(
         [
+            "--engine",
+            "python",
             "cite-paragraph",
             "--doc",
             str(doc_path),
@@ -311,10 +332,12 @@ def it_adds_bibliography_and_citations_from_cli(tmp_path: Path) -> None:
             "--source-key",
             "oecd2024",
         ],
-        extra_env=py_env,
+        extra_env=js_default_env,
     )
     _run(
         [
+            "--engine",
+            "python",
             "add-citation",
             "--doc",
             str(doc_path),
@@ -322,10 +345,13 @@ def it_adds_bibliography_and_citations_from_cli(tmp_path: Path) -> None:
             "oecd2024",
             "OECD data also shows lower youth unemployment.",
         ],
-        extra_env=py_env,
+        extra_env=js_default_env,
     )
 
-    listed = _run(["--json", "list-bibliography", "--doc", str(doc_path)], extra_env=py_env)
+    listed = _run(
+        ["--json", "--engine", "python", "list-bibliography", "--doc", str(doc_path)],
+        extra_env=js_default_env,
+    )
     listed_rows = _json_lines(listed.stdout)
     assert listed_rows
     entries = listed_rows[-1]["entries"]

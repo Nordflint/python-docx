@@ -5,13 +5,13 @@ Source path: `python-docx/`
 
 ## Scope
 
-This harness exposes high-value document operations from `python-docx` as a stateful CLI:
+This harness exposes high-value DOCX operations as a stateful CLI with JS-first runtime behavior:
 
 - create/open/save documents
 - add paragraph, heading, and table content
 - insert template-driven frontpages/title pages
 - add bibliography entries and in-text citations for claim/data traceability
-- optionally route citation/bibliography `--doc` commands through a JS engine (`DOCX_ENGINE=js`) for Word footnote output
+- generate Word footnote citations in JS mode and marker citations in Python mode
 - update core metadata properties
 - inspect summary and paragraph lists
 - run with one-shot subcommands or interactive REPL
@@ -21,15 +21,16 @@ This harness exposes high-value document operations from `python-docx` as a stat
 
 ## Backend strategy
 
-The harness wraps the real `python-docx` APIs in `utils/python_docx_backend.py` and does not reimplement `.docx` behavior.
+Primary runtime is the Node worker (`utils/js_engine/engine.mjs`) selected by default when
+dependencies are available (`DOCX_ENGINE=auto`). The JS session supports one-shot `--doc` mode
+and in-memory REPL/session mode. JS session `new` starts from a bundled default `.docx` template
+(`templates/default.docx`) to avoid Python-side document construction requirements.
 
-For hybrid migration, a Node worker (`utils/js_engine/engine.mjs`) can be selected for selected
-commands in both one-shot `--doc` mode and JS-backed in-memory session mode. JS session `new`
-starts from a bundled default `.docx` template (`templates/default.docx`) to reduce runtime
-coupling on Python-side document construction.
+Python fallback mode remains available through `utils/python_docx_backend.py` and `DocxSession`.
 
 Engine selection is controlled by `DOCX_ENGINE` (`auto`, `js`, `python`), where `auto`
-prefers JS when Node dependencies are available.
+prefers JS when Node dependencies are available. Per-invocation override is also available via
+`--engine auto|js|python`.
 
 ## Session model
 

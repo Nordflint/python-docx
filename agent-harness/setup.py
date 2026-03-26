@@ -8,7 +8,7 @@ README = (BASE_DIR / "cli_anything" / "python_docx" / "README.md").read_text(enc
 setup(
     name="cli-anything-python-docx",
     version="0.1.0",
-    description="CLI-Anything harness for python-docx",
+    description="CLI-Anything DOCX harness with JS-first engine and optional python-docx fallback",
     long_description=README,
     long_description_content_type="text/markdown",
     author="CLI-Anything",

@@ -1,6 +1,6 @@
 # CLI-Anything python-docx Harness
 
-Stateful CLI harness for `python-docx` with one-shot commands, JSON output, and REPL-first workflow.
+Stateful DOCX CLI with a JS-first engine (`DOCX_ENGINE=auto`) and optional `python-docx` fallback.
 
 ## Install
 
@@ -16,6 +16,8 @@ Optional Python fallback engine support:
 ```bash
 python -m pip install -e .[python]
 ```
+
+JS runtime (`node` + `agent-harness/node_modules`) is the default execution path when available.
 
 ## Usage
 
@@ -34,10 +36,13 @@ cli-anything-python-docx add-citation --doc ./demo.docx --source-key gov2025 "Em
 cli-anything-python-docx cite-paragraph --doc ./demo.docx --index 3 --source-key gov2025
 cli-anything-python-docx --json list-bibliography --doc ./demo.docx
 
-# JS engine mode (footnote citations in .docx XML for --doc commands)
+# Explicit JS override (footnote citations in .docx XML for --doc commands)
 DOCX_ENGINE=js cli-anything-python-docx add-bibliography-entry --doc ./demo.docx gov2025 "Government Statistics Annual Report (2025)" --url "https://example.com/report"
 DOCX_ENGINE=js cli-anything-python-docx add-citation --doc ./demo.docx --source-key gov2025 "Employment increased by 4.2% in 2025."
 cli-anything-python-docx --engine js add-citation --doc ./demo.docx --source-key gov2025 "Employment increased by 4.2% in 2025."
+
+# Explicit Python fallback override (marker-based citations)
+cli-anything-python-docx --engine python add-citation --doc ./demo.docx --source-key gov2025 "Employment increased by 4.2% in 2025."
 ```
 
 REPL (default when no subcommand is provided):
@@ -85,7 +90,7 @@ The `corporate` frontpage template uses a blue (`main`) background with white te
 Bibliography entries are stored as numbered lines under a `Bibliography` heading.
 In-text citation markers use those numbers, for example `[1]` or `[1, 2]`, so claims and data can be traced to their sources.
 
-## JS Engine (Hybrid Migration Slice)
+## Engine Selection
 
 - Engine selection uses `DOCX_ENGINE` with these values:
   - `auto` (default): prefer JS when Node + dependencies are available, else fall back to Python.
@@ -93,10 +98,10 @@ In-text citation markers use those numbers, for example `[1]` or `[1, 2]`, so cl
   - `python`: force Python engine.
 - You can also override engine selection per invocation using global `--engine auto|js|python`.
 - `python-docx` is now optional at install-time and only required for Python engine mode.
-- Set `DOCX_ENGINE=js` to force selected commands through the Node engine.
 - In `auto` or `js` mode, command execution runs through the JS-backed session (including REPL + one-shot flows).
 - In JS mode, citations are written as Word footnote references (`word/footnotes.xml`) while preserving CLI JSON/text contracts.
-- In JS mode, commands without `--doc` now run on a JS-backed in-memory session, including `new/open/save` and `undo/redo`.
+- In Python mode, citations remain marker-based paragraph text (for compatibility).
+- Commands without `--doc` also run on the selected in-memory session, including `new/open/save` and `undo/redo`.
 
 ## Palette
 

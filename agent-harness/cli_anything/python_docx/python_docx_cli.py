@@ -200,7 +200,7 @@ def _build_session(ctx_obj: dict[str, Any]) -> Any:
 )
 @click.pass_context
 def cli(ctx: click.Context, json_output: bool, engine_override: str | None) -> None:
-    """CLI-Anything harness for python-docx."""
+    """CLI-Anything harness for DOCX operations."""
     if ctx.obj is None:
         ctx.obj = {}
     if engine_override:
