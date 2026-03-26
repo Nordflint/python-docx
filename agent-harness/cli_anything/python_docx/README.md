@@ -44,12 +44,12 @@ REPL (default when no subcommand is provided):
 
 ```bash
 cli-anything-python-docx
-python-docx> new ./notes.docx --title "Notes"
-python-docx> add-heading "Sprint" --level 2
-python-docx> add-paragraph "Action item"
-python-docx> undo
-python-docx> save
-python-docx> exit
+docx> new ./notes.docx --title "Notes"
+docx> add-heading "Sprint" --level 2
+docx> add-paragraph "Action item"
+docx> undo
+docx> save
+docx> exit
 ```
 
 ## Commands

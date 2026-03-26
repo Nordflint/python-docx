@@ -101,10 +101,10 @@ def _python_runtime_ready() -> bool:
 
 
 def _run_repl(root: click.Command, ctx_obj: dict[str, Any]) -> None:
-    click.echo("python-docx REPL. Type 'help' for commands, 'exit' to quit.")
+    click.echo(f"docx REPL (engine={_active_engine(ctx_obj)}). Type 'help' for commands, 'exit' to quit.")
     while True:
         try:
-            line = input("python-docx> ").strip()
+            line = input("docx> ").strip()
         except EOFError:
             click.echo()
             break
