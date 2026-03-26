@@ -14,6 +14,9 @@ setup(
     author="CLI-Anything",
     packages=find_namespace_packages(include=["cli_anything.*"]),
     include_package_data=True,
+    package_data={
+        "cli_anything.python_docx.utils": ["js_engine/*.mjs"],
+    },
     install_requires=[
         "click>=8.1.7",
         "python-docx>=1.1.2",

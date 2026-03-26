@@ -145,3 +145,56 @@ def it_inserts_frontpage_template_before_existing_content(tmp_path: Path) -> Non
     body_index = next(i for i, para in enumerate(doc.paragraphs) if para.text == "Existing body content")
     assert body_index > 1
     assert doc.core_properties.title == "Quarterly Results"
+
+
+def it_adds_bibliography_entries_and_in_text_citations(tmp_path: Path) -> None:
+    target = tmp_path / "citations.docx"
+    session = DocxSession()
+    session.new_document(path=target)
+    session.add_paragraph("Revenue grew 12 percent year over year.")
+
+    first = session.add_bibliography_entry(
+        key="cph2025",
+        reference="City of Copenhagen Annual Report 2025",
+        url="https://example.com/cph2025",
+    )
+    second = session.add_bibliography_entry(
+        key="oecd2024",
+        reference="OECD Urban Outlook 2024",
+    )
+    cited_existing = session.cite_paragraph(
+        paragraph_index=0,
+        source_keys=["cph2025", "oecd2024"],
+    )
+    cited_new = session.add_citation(
+        text="Population density rose in central districts.",
+        source_keys=["oecd2024"],
+    )
+    session.save()
+
+    assert first["number"] == 1
+    assert second["number"] == 2
+    assert cited_existing["text_after"].endswith("[1, 2]")
+    assert cited_new["citation_marker"] == "[2]"
+
+    doc = Document(str(target))
+    texts = [paragraph.text for paragraph in doc.paragraphs]
+    assert texts[0].endswith("[1, 2]")
+    bibliography_index = texts.index("Bibliography")
+    assert texts[bibliography_index + 1].startswith("[1] cph2025:")
+    assert "(URL: https://example.com/cph2025)" in texts[bibliography_index + 1]
+    assert texts[bibliography_index + 2].startswith("[2] oecd2024:")
+    assert any(text.endswith("[2]") for text in texts)
+
+
+def it_raises_when_citation_source_key_does_not_exist() -> None:
+    session = DocxSession()
+    session.new_document()
+    session.add_paragraph("Claim text.")
+    session.add_bibliography_entry(
+        key="known",
+        reference="Known source",
+    )
+
+    with pytest.raises(SessionError, match="Unknown bibliography key"):
+        session.cite_paragraph(paragraph_index=0, source_keys=["missing"])

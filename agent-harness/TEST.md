@@ -19,5 +19,6 @@ From `python-docx/agent-harness`:
 
 ```bash
 python -m pip install -e .
+npm install
 python -m pytest -q cli_anything/python_docx/tests
 ```

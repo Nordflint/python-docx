@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,11 @@ class DocxSession:
     PALETTE_SECONDARY = "357AE9"
     PALETTE_WHITE = "FFFFFF"
     FRONTPAGE_TEMPLATES = ("clean", "corporate", "academic")
+    BIBLIOGRAPHY_HEADING = "Bibliography"
+    BIBLIOGRAPHY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
+    BIBLIOGRAPHY_ENTRY_PATTERN = re.compile(
+        r"^\[(?P<number>\d+)\]\s+(?P<key>[A-Za-z0-9._:-]+)\s*:\s*(?P<reference>.+)$"
+    )
 
     def __init__(self) -> None:
         self._document: Any | None = None
@@ -367,6 +373,115 @@ class DocxSession:
 
         return {"rows": total_rows, "cols": inferred_cols}
 
+    def add_bibliography_entry(
+        self,
+        key: str,
+        reference: str,
+        url: str | None = None,
+    ) -> dict[str, Any]:
+        doc = self._ensure_document()
+        normalized_key = self._normalize_bibliography_key(key)
+        normalized_reference = reference.strip()
+        if not normalized_reference:
+            raise SessionError("Bibliography reference cannot be empty.")
+        normalized_url = url.strip() if url else None
+        if normalized_url == "":
+            normalized_url = None
+
+        existing_entries = self._bibliography_entries(doc)
+        existing_keys = {entry["key"].lower() for entry in existing_entries}
+        if normalized_key.lower() in existing_keys:
+            raise SessionError(f"Bibliography key already exists: {normalized_key}")
+
+        self._checkpoint()
+
+        _, insert_before = self._ensure_bibliography_heading(doc)
+        existing_entries = self._bibliography_entries(doc)
+        citation_number = max((entry["number"] for entry in existing_entries), default=0) + 1
+        entry_text = f"[{citation_number}] {normalized_key}: {normalized_reference}"
+        if normalized_url:
+            entry_text = f"{entry_text} (URL: {normalized_url})"
+
+        if insert_before is None:
+            paragraph = doc.add_paragraph(entry_text)
+        else:
+            paragraph = insert_before.insert_paragraph_before(entry_text)
+
+        return {
+            "number": citation_number,
+            "key": normalized_key,
+            "reference": normalized_reference,
+            "url": normalized_url,
+            "text": paragraph.text,
+        }
+
+    def list_bibliography(self) -> list[dict[str, Any]]:
+        doc = self._ensure_document()
+        entries = self._bibliography_entries(doc)
+        return [
+            {
+                "number": entry["number"],
+                "key": entry["key"],
+                "reference": entry["reference"],
+            }
+            for entry in entries
+        ]
+
+    def add_citation(
+        self,
+        text: str,
+        source_keys: list[str],
+        style: str | None = None,
+    ) -> dict[str, Any]:
+        doc = self._ensure_document()
+        normalized_text = text.strip()
+        if not normalized_text:
+            raise SessionError("Citation text cannot be empty.")
+
+        numbers = self._citation_numbers_for_keys(doc, source_keys)
+        marker = self._format_citation_marker(numbers)
+        paragraph_text = f"{normalized_text} {marker}"
+
+        self._checkpoint()
+        if style:
+            paragraph = doc.add_paragraph(paragraph_text, style=style)
+        else:
+            paragraph = doc.add_paragraph(paragraph_text)
+
+        return {
+            "text": paragraph.text,
+            "source_keys": [self._normalize_bibliography_key(key) for key in source_keys],
+            "citation_numbers": numbers,
+            "citation_marker": marker,
+            "style": style,
+        }
+
+    def cite_paragraph(self, paragraph_index: int, source_keys: list[str]) -> dict[str, Any]:
+        doc = self._ensure_document()
+        paragraphs = doc.paragraphs
+        if paragraph_index < 0 or paragraph_index >= len(paragraphs):
+            raise SessionError(f"paragraph_index out of range: {paragraph_index}")
+
+        numbers = self._citation_numbers_for_keys(doc, source_keys)
+        marker = self._format_citation_marker(numbers)
+        paragraph = paragraphs[paragraph_index]
+        prior_text = paragraph.text
+        updated_text = prior_text.rstrip()
+        if not updated_text.endswith(marker):
+            updated_text = f"{updated_text} {marker}".strip()
+
+        self._checkpoint()
+        paragraph.text = updated_text
+
+        return {
+            "paragraph_index": paragraph_index,
+            "text_before": prior_text,
+            "text_after": paragraph.text,
+            "source_keys": [self._normalize_bibliography_key(key) for key in source_keys],
+            "citation_numbers": numbers,
+            "citation_marker": marker,
+        }
+
     def _append_frontpage_line(
         self,
         elements: list[Any],
@@ -487,6 +602,103 @@ class DocxSession:
             edge_elm.set(qn("w:sz"), str(line_size))
             edge_elm.set(qn("w:space"), "0")
             edge_elm.set(qn("w:color"), color)
+
+    def _normalize_bibliography_key(self, key: str) -> str:
+        normalized = key.strip()
+        if not normalized:
+            raise SessionError("Bibliography key cannot be empty.")
+        if not self.BIBLIOGRAPHY_KEY_PATTERN.fullmatch(normalized):
+            raise SessionError(
+                "Bibliography key must only contain letters, numbers, dot, underscore, colon, or dash."
+            )
+        return normalized
+
+    def _find_bibliography_heading(self, doc: Any) -> tuple[Any | None, int | None]:
+        for index, paragraph in enumerate(doc.paragraphs):
+            if paragraph.text.strip().lower() == self.BIBLIOGRAPHY_HEADING.lower():
+                return paragraph, index
+        return None, None
+
+    def _next_heading_after_index(self, doc: Any, start_index: int) -> int | None:
+        for paragraph_index, paragraph in enumerate(doc.paragraphs[start_index + 1 :], start=start_index + 1):
+            style = getattr(paragraph, "style", None)
+            style_name = getattr(style, "name", "")
+            if isinstance(style_name, str) and style_name.startswith("Heading"):
+                return paragraph_index
+        return None
+
+    def _ensure_bibliography_heading(self, doc: Any) -> tuple[Any, Any | None]:
+        heading, heading_index = self._find_bibliography_heading(doc)
+        if heading is None or heading_index is None:
+            heading = doc.add_heading(self.BIBLIOGRAPHY_HEADING, level=1)
+            self._apply_paragraph_color(heading, self.PALETTE_MAIN)
+            return heading, None
+        next_heading_index = self._next_heading_after_index(doc, heading_index)
+        if next_heading_index is None:
+            return heading, None
+        return heading, doc.paragraphs[next_heading_index]
+
+    def _bibliography_entries(self, doc: Any) -> list[dict[str, Any]]:
+        _, heading_index = self._find_bibliography_heading(doc)
+        if heading_index is None:
+            return []
+
+        next_heading_index = self._next_heading_after_index(doc, heading_index)
+        if next_heading_index is None:
+            end_index = len(doc.paragraphs)
+        else:
+            end_index = next_heading_index
+
+        entries: list[dict[str, Any]] = []
+        for paragraph_index in range(heading_index + 1, end_index):
+            text = doc.paragraphs[paragraph_index].text.strip()
+            if not text:
+                continue
+            match = self.BIBLIOGRAPHY_ENTRY_PATTERN.match(text)
+            if not match:
+                continue
+            entries.append(
+                {
+                    "number": int(match.group("number")),
+                    "key": match.group("key"),
+                    "reference": match.group("reference").strip(),
+                    "paragraph_index": paragraph_index,
+                }
+            )
+        entries.sort(key=lambda entry: entry["number"])
+        return entries
+
+    def _citation_numbers_for_keys(self, doc: Any, source_keys: list[str]) -> list[int]:
+        if not source_keys:
+            raise SessionError("At least one source key is required.")
+
+        entries = self._bibliography_entries(doc)
+        if not entries:
+            raise SessionError("No bibliography entries found. Add bibliography entries before citing.")
+
+        key_to_number = {entry["key"].lower(): entry["number"] for entry in entries}
+        citation_numbers: list[int] = []
+        missing_keys: list[str] = []
+        for key in source_keys:
+            normalized_key = self._normalize_bibliography_key(key)
+            number = key_to_number.get(normalized_key.lower())
+            if number is None:
+                missing_keys.append(normalized_key)
+                continue
+            if number not in citation_numbers:
+                citation_numbers.append(number)
+
+        if missing_keys:
+            missing = ", ".join(missing_keys)
+            raise SessionError(f"Unknown bibliography key(s): {missing}")
+
+        return citation_numbers
+
+    def _format_citation_marker(self, citation_numbers: list[int]) -> str:
+        if len(citation_numbers) == 1:
+            return f"[{citation_numbers[0]}]"
+        joined = ", ".join(str(number) for number in citation_numbers)
+        return f"[{joined}]"
 
     def set_core_property(self, key: str, value: str) -> None:
         doc = self._ensure_document()

@@ -1,0 +1,10 @@
+{
+  "name": "python-docx-js-engine",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@xmldom/xmldom": "^0.8.11",
+    "jszip": "^3.10.1",
+    "xpath": "^0.0.34"
+  }
+}
