@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
-from cli_anything.python_docx.core.session import SessionError
+from cli_anything.python_docx.core.errors import SessionError
 from cli_anything.python_docx.utils import js_docx_engine
 
 T = TypeVar("T")

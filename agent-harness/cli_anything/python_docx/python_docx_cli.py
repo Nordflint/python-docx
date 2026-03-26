@@ -6,11 +6,11 @@ import os
 import shlex
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import click
 
-from cli_anything.python_docx.core import DocxSession, JsDocxSession, SessionError
+from cli_anything.python_docx.core import JsDocxSession, SessionError
 
 
 def _format_summary(summary: dict[str, Any]) -> str:
@@ -35,18 +35,18 @@ def _emit(ctx: click.Context, payload: dict[str, Any], text: str | None = None) 
     click.echo(json.dumps(payload, indent=2, sort_keys=True))
 
 
-def _session_from_context(ctx: click.Context) -> DocxSession:
+def _session_from_context(ctx: click.Context) -> Any:
     return ctx.obj["session"]
 
 
-def _open_if_requested(session: DocxSession, doc: str | None) -> bool:
+def _open_if_requested(session: Any, doc: str | None) -> bool:
     if not doc:
         return False
     session.open_document(Path(doc))
     return True
 
 
-def _require_session_doc(session: DocxSession) -> None:
+def _require_session_doc(session: Any) -> None:
     if not session.has_document:
         raise click.UsageError("No active document. Use new/open or pass --doc.")
 
@@ -150,6 +150,19 @@ def _run_repl(root: click.Command, ctx_obj: dict[str, Any]) -> None:
             click.echo(f"Error: {err}")
 
 
+def _build_session() -> Any:
+    active_engine = _active_engine()
+    if active_engine == "js":
+        return JsDocxSession()
+    try:
+        from cli_anything.python_docx.core.session import DocxSession
+    except Exception as err:  # noqa: BLE001
+        raise click.ClickException(
+            "Python engine is unavailable. Install python-docx or set DOCX_ENGINE=js."
+        ) from err
+    return cast(Any, DocxSession())
+
+
 @click.group(invoke_without_command=True)
 @click.option("--json", "json_output", is_flag=True, help="Emit JSON output.")
 @click.pass_context
@@ -158,7 +171,7 @@ def cli(ctx: click.Context, json_output: bool) -> None:
     if ctx.obj is None:
         ctx.obj = {}
     if "session" not in ctx.obj:
-        ctx.obj["session"] = JsDocxSession() if _active_engine() == "js" else DocxSession()
+        ctx.obj["session"] = _build_session()
     if json_output:
         ctx.obj["json_output"] = True
     else:
@@ -452,7 +465,7 @@ def frontpage_templates_command(ctx: click.Context) -> None:
 @click.option(
     "--template",
     "template_name",
-    type=click.Choice(list(DocxSession.FRONTPAGE_TEMPLATES), case_sensitive=False),
+    type=click.Choice(list(JsDocxSession.FRONTPAGE_TEMPLATES), case_sensitive=False),
     default="clean",
     show_default=True,
     help="Frontpage template preset.",

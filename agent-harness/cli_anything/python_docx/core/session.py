@@ -12,11 +12,8 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
 
+from cli_anything.python_docx.core.errors import SessionError
 from cli_anything.python_docx.utils import python_docx_backend as backend
-
-
-class SessionError(RuntimeError):
-    """Raised when an operation requires unavailable session state."""
 
 
 class DocxSession:
