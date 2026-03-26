@@ -37,6 +37,7 @@ cli-anything-python-docx --json list-bibliography --doc ./demo.docx
 # JS engine mode (footnote citations in .docx XML for --doc commands)
 DOCX_ENGINE=js cli-anything-python-docx add-bibliography-entry --doc ./demo.docx gov2025 "Government Statistics Annual Report (2025)" --url "https://example.com/report"
 DOCX_ENGINE=js cli-anything-python-docx add-citation --doc ./demo.docx --source-key gov2025 "Employment increased by 4.2% in 2025."
+cli-anything-python-docx --engine js add-citation --doc ./demo.docx --source-key gov2025 "Employment increased by 4.2% in 2025."
 ```
 
 REPL (default when no subcommand is provided):
@@ -90,6 +91,7 @@ In-text citation markers use those numbers, for example `[1]` or `[1, 2]`, so cl
   - `auto` (default): prefer JS when Node + dependencies are available, else fall back to Python.
   - `js`: force JS engine.
   - `python`: force Python engine.
+- You can also override engine selection per invocation using global `--engine auto|js|python`.
 - `python-docx` is now optional at install-time and only required for Python engine mode.
 - Set `DOCX_ENGINE=js` to force selected commands through the Node engine.
 - In `auto` or `js` mode, command execution runs through the JS-backed session (including REPL + one-shot flows).

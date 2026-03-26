@@ -66,8 +66,8 @@ def _require_source_keys(source_keys: tuple[str, ...]) -> list[str]:
     return list(source_keys)
 
 
-def _active_engine() -> str:
-    configured = str(os.environ.get("DOCX_ENGINE", "auto")).strip().lower()
+def _active_engine(ctx_obj: dict[str, Any] | None = None) -> str:
+    configured = _configured_engine(ctx_obj)
     if configured == "auto":
         return "js" if _js_runtime_ready() else "python"
     if configured in {"js", "python"}:
@@ -75,7 +75,9 @@ def _active_engine() -> str:
     return "js" if _js_runtime_ready() else "python"
 
 
-def _configured_engine() -> str:
+def _configured_engine(ctx_obj: dict[str, Any] | None = None) -> str:
+    if ctx_obj and ctx_obj.get("engine_override"):
+        return str(ctx_obj["engine_override"]).strip().lower()
     return str(os.environ.get("DOCX_ENGINE", "auto")).strip().lower()
 
 
@@ -160,19 +162,19 @@ def _run_repl(root: click.Command, ctx_obj: dict[str, Any]) -> None:
             click.echo(f"Error: {err}")
 
 
-def _build_session() -> Any:
-    active_engine = _active_engine()
+def _build_session(ctx_obj: dict[str, Any]) -> Any:
+    active_engine = _active_engine(ctx_obj)
     if active_engine == "js":
         if not _js_runtime_ready():
             raise click.ClickException(
                 "JS engine is unavailable. Install Node dependencies in agent-harness/ "
-                "or set DOCX_ENGINE=python."
+                "or set DOCX_ENGINE=python/--engine python."
             )
         return JsDocxSession()
     if not _python_runtime_ready():
         if _js_runtime_ready():
             raise click.ClickException(
-                "Python engine is unavailable. Install python-docx or set DOCX_ENGINE=js."
+                "Python engine is unavailable. Install python-docx or set DOCX_ENGINE=js/--engine js."
             )
         raise click.ClickException(
             "No DOCX engine runtime is available. Install Node dependencies for JS mode "
@@ -182,20 +184,29 @@ def _build_session() -> Any:
         from cli_anything.python_docx.core.session import DocxSession
     except Exception as err:  # noqa: BLE001
         raise click.ClickException(
-            "Python engine is unavailable. Install python-docx or set DOCX_ENGINE=js."
+            "Python engine is unavailable. Install python-docx or set DOCX_ENGINE=js/--engine js."
         ) from err
     return cast(Any, DocxSession())
 
 
 @click.group(invoke_without_command=True)
 @click.option("--json", "json_output", is_flag=True, help="Emit JSON output.")
+@click.option(
+    "--engine",
+    "engine_override",
+    type=click.Choice(["auto", "js", "python"], case_sensitive=False),
+    default=None,
+    help="Override DOCX_ENGINE for this invocation.",
+)
 @click.pass_context
-def cli(ctx: click.Context, json_output: bool) -> None:
+def cli(ctx: click.Context, json_output: bool, engine_override: str | None) -> None:
     """CLI-Anything harness for python-docx."""
     if ctx.obj is None:
         ctx.obj = {}
+    if engine_override:
+        ctx.obj["engine_override"] = engine_override.lower()
     if "session" not in ctx.obj:
-        ctx.obj["session"] = _build_session()
+        ctx.obj["session"] = _build_session(ctx.obj)
     if json_output:
         ctx.obj["json_output"] = True
     else:
@@ -220,8 +231,8 @@ def engine_command(ctx: click.Context) -> None:
         "ok": True,
         "action": "engine",
         "engine": {
-            "configured": _configured_engine(),
-            "active": _active_engine(),
+            "configured": _configured_engine(ctx.obj),
+            "active": _active_engine(ctx.obj),
             "js_runtime_ready": _js_runtime_ready(),
             "python_runtime_ready": _python_runtime_ready(),
         },

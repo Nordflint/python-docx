@@ -90,6 +90,34 @@ def it_reports_effective_engine() -> None:
     assert isinstance(payload["engine"]["python_runtime_ready"], bool)
 
 
+@pytest.mark.skipif(
+    not _js_engine_ready(),
+    reason="JS engine dependencies are not installed. Run `npm install` in agent-harness/ first.",
+)
+def it_supports_cli_engine_override_flag(tmp_path: Path) -> None:
+    doc_path = tmp_path / "engine-override.docx"
+
+    _run(["new", str(doc_path)])
+    _run(
+        ["--engine", "js", "add-bibliography-entry", "--doc", str(doc_path), "src1", "Source One"],
+        extra_env={"DOCX_ENGINE": "python"},
+    )
+    _run(
+        ["--engine", "js", "add-citation", "--doc", str(doc_path), "--source-key", "src1", "Override claim."],
+        extra_env={"DOCX_ENGINE": "python"},
+    )
+
+    engine = _run(["--json", "--engine", "js", "engine"], extra_env={"DOCX_ENGINE": "python"})
+    rows = _json_lines(engine.stdout)
+    assert rows
+    payload = rows[-1]["engine"]
+    assert payload["configured"] == "js"
+    assert payload["active"] == "js"
+
+    with zipfile.ZipFile(doc_path) as archive:
+        assert "word/footnotes.xml" in archive.namelist()
+
+
 def it_runs_default_repl_mode_with_undo() -> None:
     repl_script = "\n".join(
         [
