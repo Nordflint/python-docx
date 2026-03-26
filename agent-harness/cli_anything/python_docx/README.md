@@ -84,7 +84,7 @@ In-text citation markers use those numbers, for example `[1]` or `[1, 2]`, so cl
   - `js`: force JS engine.
   - `python`: force Python engine.
 - Set `DOCX_ENGINE=js` to force selected commands through the Node engine.
-- Current JS-routed commands: `summary`, `list-paragraphs`, `add-paragraph`, `add-heading`, `add-table`, `add-frontpage`, `set-core`, `add-bibliography-entry`, `list-bibliography`, `add-citation`, and `cite-paragraph`.
+- In `auto` or `js` mode, command execution runs through the JS-backed session (including REPL + one-shot flows).
 - In JS mode, citations are written as Word footnote references (`word/footnotes.xml`) while preserving CLI JSON/text contracts.
 - In JS mode, commands without `--doc` now run on a JS-backed in-memory session, including `new/open/save` and `undo/redo`.
 

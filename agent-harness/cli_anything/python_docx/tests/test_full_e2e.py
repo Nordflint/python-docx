@@ -308,6 +308,23 @@ def it_adds_bibliography_and_citations_from_cli(tmp_path: Path) -> None:
     not _js_engine_ready(),
     reason="JS engine dependencies are not installed. Run `npm install` in agent-harness/ first.",
 )
+def it_prefers_js_engine_in_auto_mode_when_available(tmp_path: Path) -> None:
+    doc_path = tmp_path / "auto-engine-prefers-js.docx"
+
+    _run(["new", str(doc_path)])
+    _run(["add-bibliography-entry", "--doc", str(doc_path), "src1", "Source One"])
+    _run(["add-citation", "--doc", str(doc_path), "--source-key", "src1", "Auto mode claim text."])
+
+    with zipfile.ZipFile(doc_path) as archive:
+        assert "word/footnotes.xml" in archive.namelist()
+        document_xml = archive.read("word/document.xml").decode("utf-8")
+    assert re.search(r"<w:footnoteReference[^>]*w:id=\"1\"", document_xml)
+
+
+@pytest.mark.skipif(
+    not _js_engine_ready(),
+    reason="JS engine dependencies are not installed. Run `npm install` in agent-harness/ first.",
+)
 def it_runs_js_engine_repl_session_with_undo_and_save(tmp_path: Path) -> None:
     doc_path = tmp_path / "js-repl-session.docx"
     js_env = {"DOCX_ENGINE": "js"}

@@ -11,7 +11,6 @@ from typing import Any
 import click
 
 from cli_anything.python_docx.core import DocxSession, JsDocxSession, SessionError
-from cli_anything.python_docx.utils import js_docx_engine
 
 
 def _format_summary(summary: dict[str, Any]) -> str:
@@ -81,12 +80,8 @@ def _js_runtime_ready() -> bool:
     engine_script = Path(__file__).resolve().parent / "utils" / "js_engine" / "engine.mjs"
     if not engine_script.exists():
         return False
-    node_modules_dir = Path(__file__).resolve().parents[3] / "node_modules"
+    node_modules_dir = Path(__file__).resolve().parents[2] / "node_modules"
     return node_modules_dir.exists()
-
-
-def _should_use_js_engine(doc: Path | None) -> bool:
-    return _active_engine() == "js" and doc is not None
 
 
 def _run_repl(root: click.Command, ctx_obj: dict[str, Any]) -> None:
@@ -221,16 +216,6 @@ def save_command(ctx: click.Context, path: Path | None) -> None:
 @click.pass_context
 def summary_command(ctx: click.Context, doc: Path | None) -> None:
     """Show document summary."""
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            summary = js_docx_engine.summary(doc_path=doc)
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {"ok": True, "action": "summary", "summary": summary}
-        _emit(ctx, payload, text=_format_summary(summary))
-        return
-
     session = _session_from_context(ctx)
     _open_if_requested(session, str(doc) if doc else None)
     _require_session_doc(session)
@@ -245,23 +230,6 @@ def summary_command(ctx: click.Context, doc: Path | None) -> None:
 @click.pass_context
 def list_paragraphs_command(ctx: click.Context, doc: Path | None, limit: int | None) -> None:
     """List document paragraphs."""
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            rows = js_docx_engine.list_paragraphs(doc_path=doc, limit=limit)
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {"ok": True, "action": "list-paragraphs", "paragraphs": rows}
-        if ctx.obj.get("json_output", False):
-            _emit(ctx, payload)
-            return
-        if not rows:
-            click.echo("No paragraphs.")
-            return
-        for row in rows:
-            click.echo(f"[{row['index']}] ({row['style']}) {row['text']}")
-        return
-
     session = _session_from_context(ctx)
     _open_if_requested(session, str(doc) if doc else None)
     _require_session_doc(session)
@@ -285,22 +253,6 @@ def list_paragraphs_command(ctx: click.Context, doc: Path | None, limit: int | N
 @click.pass_context
 def add_paragraph_command(ctx: click.Context, text: str, doc: Path | None, style: str | None) -> None:
     """Add a paragraph."""
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            js_docx_engine.add_paragraph(doc_path=doc, text=text, style=style)
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {
-            "ok": True,
-            "action": "add-paragraph",
-            "text": text,
-            "style": style,
-            "path": str(doc),
-        }
-        _emit(ctx, payload, text=f"Added paragraph. path={doc}")
-        return
-
     session = _session_from_context(ctx)
     used_doc = _open_if_requested(session, str(doc) if doc else None)
     _require_session_doc(session)
@@ -326,22 +278,6 @@ def add_paragraph_command(ctx: click.Context, text: str, doc: Path | None, style
 @click.pass_context
 def add_heading_command(ctx: click.Context, text: str, doc: Path | None, level: int) -> None:
     """Add a heading paragraph."""
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            js_docx_engine.add_heading(doc_path=doc, text=text, level=level)
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {
-            "ok": True,
-            "action": "add-heading",
-            "text": text,
-            "level": level,
-            "path": str(doc),
-        }
-        _emit(ctx, payload, text=f"Added heading. path={doc}")
-        return
-
     session = _session_from_context(ctx)
     used_doc = _open_if_requested(session, str(doc) if doc else None)
     _require_session_doc(session)
@@ -418,56 +354,6 @@ def add_table_command(
         raise click.UsageError("Provide --rows and --cols for empty-table mode, or use --header/--record.")
     if (header_bold or header_bg_color) and not headers:
         raise click.UsageError("--header-bold/--header-bg-color require at least one --header.")
-
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            table_shape = js_docx_engine.add_table(
-                doc_path=doc,
-                rows=rows,
-                cols=cols,
-                headers=list(headers),
-                records=records,
-                header_bold=header_bold,
-                header_bg_color=header_bg_color,
-                row_lines=row_lines,
-                column_lines=column_lines,
-                outer_border=outer_border,
-                line_style=line_style.lower(),
-                line_size=line_size,
-                line_color=line_color,
-            )
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {
-            "ok": True,
-            "action": "add-table",
-            "rows": table_shape["rows"],
-            "cols": table_shape["cols"],
-            "header_count": len(headers),
-            "record_count": len(records),
-            "header_bold": header_bold,
-            "header_bg_color": header_bg_color,
-            "row_lines": row_lines,
-            "column_lines": column_lines,
-            "outer_border": outer_border,
-            "line_style": line_style.lower(),
-            "line_size": line_size,
-            "line_color": line_color,
-            "path": str(doc),
-        }
-        _emit(
-            ctx,
-            payload,
-            text=(
-                f"Added table {table_shape['rows']}x{table_shape['cols']} "
-                f"(headers={len(headers)}, records={len(records)}, "
-                f"header_bold={header_bold}, header_bg_color={header_bg_color}, "
-                f"row_lines={row_lines}, column_lines={column_lines}, outer_border={outer_border}). "
-                f"path={doc}"
-            ),
-        )
-        return
 
     session = _session_from_context(ctx)
     used_doc = _open_if_requested(session, str(doc) if doc else None)
@@ -564,38 +450,6 @@ def add_frontpage_command(
     set_core_title: bool,
 ) -> None:
     """Insert a template-driven frontpage at the beginning of the document."""
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            frontpage_meta = js_docx_engine.add_frontpage(
-                doc_path=doc,
-                template=template_name,
-                title=title,
-                subtitle=subtitle,
-                author=author,
-                organization=organization,
-                date_text=date_text,
-                include_page_break=page_break,
-                set_core_title=set_core_title,
-            )
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {
-            "ok": True,
-            "action": "add-frontpage",
-            "frontpage": frontpage_meta,
-            "path": str(doc),
-        }
-        _emit(
-            ctx,
-            payload,
-            text=(
-                f"Inserted frontpage template '{frontpage_meta['template']}' "
-                f"with title '{frontpage_meta['title']}'. path={doc}"
-            ),
-        )
-        return
-
     session = _session_from_context(ctx)
     used_doc = _open_if_requested(session, str(doc) if doc else None)
     _require_session_doc(session)
@@ -643,28 +497,6 @@ def add_bibliography_entry_command(
     doc: Path | None,
 ) -> None:
     """Add a bibliography entry and assign it a citation number."""
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            entry = js_docx_engine.add_bibliography_entry(doc_path=doc, key=key, reference=reference, url=url)
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {
-            "ok": True,
-            "action": "add-bibliography-entry",
-            "entry": entry,
-            "path": str(doc),
-        }
-        _emit(
-            ctx,
-            payload,
-            text=(
-                f"Added bibliography entry [{entry['number']}] {entry['key']}. "
-                f"path={doc}"
-            ),
-        )
-        return
-
     session = _session_from_context(ctx)
     used_doc = _open_if_requested(session, str(doc) if doc else None)
     _require_session_doc(session)
@@ -694,23 +526,6 @@ def add_bibliography_entry_command(
 @click.pass_context
 def list_bibliography_command(ctx: click.Context, doc: Path | None) -> None:
     """List bibliography entries recognized by this harness."""
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            entries = js_docx_engine.list_bibliography(doc_path=doc)
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {"ok": True, "action": "list-bibliography", "entries": entries}
-        if ctx.obj.get("json_output", False):
-            _emit(ctx, payload)
-            return
-        if not entries:
-            click.echo("No bibliography entries.")
-            return
-        for entry in entries:
-            click.echo(f"[{entry['number']}] {entry['key']}: {entry['reference']}")
-        return
-
     session = _session_from_context(ctx)
     _open_if_requested(session, str(doc) if doc else None)
     _require_session_doc(session)
@@ -742,33 +557,6 @@ def add_citation_command(
 ) -> None:
     """Add a paragraph ending with in-text citation marker(s)."""
     normalized_source_keys = _require_source_keys(source_keys)
-
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            citation = js_docx_engine.add_citation(
-                doc_path=doc,
-                text=text,
-                source_keys=normalized_source_keys,
-                style=style,
-            )
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {
-            "ok": True,
-            "action": "add-citation",
-            "citation": citation,
-            "path": str(doc),
-        }
-        _emit(
-            ctx,
-            payload,
-            text=(
-                f"Added citation {citation['citation_marker']} for keys "
-                f"{', '.join(citation['source_keys'])}. path={doc}"
-            ),
-        )
-        return
 
     session = _session_from_context(ctx)
     used_doc = _open_if_requested(session, str(doc) if doc else None)
@@ -808,32 +596,6 @@ def cite_paragraph_command(
     """Append in-text citation marker(s) to an existing paragraph."""
     normalized_source_keys = _require_source_keys(source_keys)
 
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            citation = js_docx_engine.cite_paragraph(
-                doc_path=doc,
-                paragraph_index=paragraph_index,
-                source_keys=normalized_source_keys,
-            )
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {
-            "ok": True,
-            "action": "cite-paragraph",
-            "citation": citation,
-            "path": str(doc),
-        }
-        _emit(
-            ctx,
-            payload,
-            text=(
-                f"Updated paragraph {paragraph_index} with citation {citation['citation_marker']}. "
-                f"path={doc}"
-            ),
-        )
-        return
-
     session = _session_from_context(ctx)
     used_doc = _open_if_requested(session, str(doc) if doc else None)
     _require_session_doc(session)
@@ -865,22 +627,6 @@ def cite_paragraph_command(
 @click.pass_context
 def set_core_command(ctx: click.Context, key: str, value: str, doc: Path | None) -> None:
     """Set a core document property."""
-    if _should_use_js_engine(doc):
-        assert doc is not None
-        try:
-            js_docx_engine.set_core_property(doc_path=doc, key=key, value=value)
-        except RuntimeError as err:
-            raise click.ClickException(str(err)) from err
-        payload = {
-            "ok": True,
-            "action": "set-core",
-            "key": key,
-            "value": value,
-            "path": str(doc),
-        }
-        _emit(ctx, payload, text=f"Set core property {key}. path={doc}")
-        return
-
     session = _session_from_context(ctx)
     used_doc = _open_if_requested(session, str(doc) if doc else None)
     _require_session_doc(session)
